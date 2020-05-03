@@ -1,0 +1,286 @@
+
+/**
+ *  Package and Import Specifications
+ */
+import java_cup.runtime.*;
+
+/**
+ *  Usercode Components
+ */
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser(Scanner s){ this.s=s; }
+:}
+
+/* define how to connect to the scanner! */
+scan with {: return s.next_token(); :};
+
+/**
+ *  Symbol Lists
+ */
+
+/* Terminals (tokens returned by the scanner). */
+terminal            IF, ELSE, PREFIX, LPAR, RPAR; 
+terminal            COMA, LBRACE, RBRACE; 
+terminal            PLUS, REVERSE; 
+terminal String     ID, STRING_LITERAL;       
+
+/*  Non terminals. The use of each one will be explained below. */
+non terminal   String  term, term2, term3, term4, expr_tail, expr_list;
+non terminal           expr_lcond, expr_rcond, expr_yes, expr_no;
+non terminal   String  if_term;
+non terminal           plus_tail, base_tail;
+non terminal   String  func_call, func_tail, func_expr, func_expr_list;  
+non terminal           program, decl_list;
+non terminal           func_decl, func_tail_decl, id_list ; 
+non terminal   String  body, bexpr, bterm, bterm2, bterm3, bterm4, bexpr_tail;
+non terminal           bexpr_lcond, bexpr_rcond, bexpr_yes, bexpr_no;
+non terminal   String  bif_term;
+non terminal           bplus_tail, bbase_tail;
+non terminal   String  bfunc_call, bfunc_tail, bfunc_expr, bfunc_expr_list;
+non terminal   String  expr;      
+
+/**
+ *  Precedence Declarations
+ */
+precedence left REVERSE, PLUS, IF;
+
+
+/**
+ *  The Grammar Rules
+ */
+
+/* Program is our starting non terminal. It may consist of a declaration list, an expression list (our statements in the main function) or both. */
+program ::= decl_list expr_list:el  {: System.out.print("\t } \n \n");   :}
+           | decl_list
+           | expr_list:el       {:  System.out.print("\t } \n \n");   :}
+
+;
+
+/* List of function declarations. */
+decl_list ::= decl_list func_decl:fd {: System.out.print(fd);  :}
+        |   func_decl:fd              {: System.out.print(fd); :}  
+        
+;
+
+/* A function declaration may consist of an identifier, an '(', the "tail" which will be explained below, and the function body.  */
+func_decl ::= ID:id1 LPAR func_tail_decl:fd body:b1  {: RESULT = "\t public static String " + id1 + "(" + fd + b1 ; :}
+;
+
+/* A tail is either a list of identifiers. Or it may not use any arguments, so in that case the list is empty. */
+func_tail_decl ::= id_list:il   {: RESULT = il ; :}
+              | LBRACE       {: RESULT = "){ \n" ; :}
+;
+
+/* List of arguments */
+id_list ::= ID:id1 COMA id_list:il {: RESULT = "String " + id1 + ", " + il ;   :}
+            | ID:id1 LBRACE        {: RESULT = "String " + id1 + "){ \n"   ;   :}          
+            ;
+
+/* The body consists of a single expression and the '}' character */
+body ::= bexpr:be RBRACE           {: RESULT = be + "\t } \n \n " ;  :}
+
+;
+
+/* bexpr is the same thing as the default expr, with the only difference being that a bexpr may support identifiers as part of the expression (unlike the main function which can't support variables). I know that it wasn't necessary but I could take care of it, so I did.*/
+/* Everything here is pretty much the same thing as in the expr section, so you may skip reading these non terminals. These non terminals simply have a 'b' as a starting letter since they refer to the function body.  */
+
+
+bexpr      ::= bterm:t1 bexpr_tail:e2        {: RESULT = "\t \t return " + t1 + e2 + "; \n" ; :}  
+              | bif_term:if1                 {: RESULT = "\t \t return " + if1 + "; \n" ;    :}
+              | bfunc_call:f1 bexpr_tail:e2  {: RESULT = "\t \t return " + f1 + e2 + "; \n" ; :} 
+             ;
+             
+
+bexpr_tail  ::= PLUS bplus_tail:p1  {:   RESULT = "+" + p1; :}
+              |                     {:   RESULT = ""; :}
+;
+
+
+bplus_tail ::= bbase_tail:b1       {:   RESULT = b1; :}
+        | bif_term:if1              {:   RESULT = "("+ if1+ ")"; :}    
+;
+
+bbase_tail ::= bterm2:t2 bexpr_tail:e3   {: RESULT = t2 + e3; :}                 
+             ;
+             
+
+bexpr_lcond  ::= bterm:t1 bexpr_tail:e2 PREFIX           {: RESULT = t1 + e2; :}
+              | bif_term:if1 PREFIX                    {: RESULT = "("+ if1+ ")"; :}  
+              | func_call:f1 expr_tail:e2 PREFIX      {: RESULT = f1+ e2; :} 
+             ;
+
+bexpr_rcond  ::= bterm:t1 bexpr_tail:e2 RPAR {: RESULT = t1 + e2; :}
+                | bif_term:if1 RPAR              {: RESULT = "("+ if1+ ")"; :}    
+                | bfunc_call:f1 bexpr_tail:e2  RPAR   {: RESULT = f1 + e2; :}  
+             ;
+
+
+bexpr_yes  ::= bterm:t1 bexpr_tail:e2 ELSE {: RESULT = t1 + e2; :}
+           | bif_term:if1 ELSE               {: RESULT = "("+ if1+ ")"; :} 
+           | bfunc_call:f1 bexpr_tail:e2 ELSE  {: RESULT = f1 + e2; :}   
+             ; 
+
+bexpr_no  ::= bterm:t1 bexpr_tail:e2  {: RESULT = t1 + e2; :}
+           | bif_term:if1              {: RESULT = "("+ if1+ ")"; :}
+           | bfunc_call:f1 bexpr_tail:e2  {: RESULT = f1 + e2; :}
+
+; 
+
+
+bif_term ::= IF LPAR bexpr_lcond:l1 bexpr_rcond:r1 bexpr_yes:y1 bexpr_no:n1 {: RESULT = "(" + r1 + ")" + ".startsWith(" 
+                                                                        + "(" + l1 + ")" + ") ? " + y1 + " : " + n1 ; :}  
+;
+
+            
+bterm ::=  REVERSE  bterm3:ts   {:   RESULT = " ( new StringBuffer( " + ts + ".reverse() ).toString() " ;     :}  
+        | STRING_LITERAL:s      {:   RESULT = "\""+s+"\"" ;    :}
+        | ID:id1                     {:  RESULT = id1; :}
+;
+
+
+bterm2 ::= REVERSE bterm4:ts      {:   RESULT = " ( new StringBuffer( " + ts + ".reverse() ).toString()  " ;   :} 
+        | bfunc_call:f1          {:   RESULT =  f1 ;     :}     
+        | STRING_LITERAL:s      {:   RESULT =  "\""+s+"\"" ;     :}
+        | ID:id1                 {:  RESULT = id1; :}  
+;
+
+
+bterm3 ::= REVERSE bterm3:t3       {:  RESULT = t3 + ".reverse()"; :} 
+        | STRING_LITERAL:s       {:  RESULT = "\""+s+"\"" + ")" ;  :}
+        | bif_term:if1            {:   RESULT = "( "+ if1+ " ))"; :}
+        | bfunc_call:f1           {:   RESULT =  f1 + ")"   ;     :} 
+        | ID:id1                    {:  RESULT = id1 + ")" ;  :}
+;
+
+
+bterm4 ::=  REVERSE bterm4:ts     {: RESULT =  ts + ".reverse()" ; :} 
+        | STRING_LITERAL:s   {:  RESULT = "\""+s+"\"" + ")" ; :}
+        | bfunc_call:f1            {:  RESULT = f1 + ")" ; :}              
+        | bif_term:if1             {:   RESULT = "( "+ if1+ " ))"; :}               
+        | ID:id1                    {:  RESULT = id1 + ")" ; :}
+;
+
+
+bfunc_call ::= ID:id1 LPAR bfunc_tail:f2 {: RESULT = id1 + "(" + f2 ;   :}
+;
+
+
+bfunc_tail ::= bfunc_expr_list:fl   {: RESULT = fl; :}  
+           | RPAR                      {:   RESULT = ")"; :}
+;
+
+
+bfunc_expr_list ::= bfunc_expr:e COMA bfunc_expr_list:fl {: RESULT = e + "," + fl ;  :}
+            | bfunc_expr:e RPAR                          {: RESULT = e + ")";        :}
+            ;
+
+bfunc_expr      ::= bterm:t1 bexpr_tail:e2    {: RESULT = t1 + e2; :}        
+              | bif_term:if1                       {: RESULT = "("+ if1+ ")"; :} 
+              | bfunc_call:f1 bexpr_tail:e2       {: RESULT = f1 + e2; :}   
+;
+
+/* The non terminals regarding the function body end here. */
+
+
+/* Main function contains a list of expressions */
+expr_list ::= expr_list:el expr:e         {:  System.out.print(e); :}
+            | expr:e                      {: System.out.print("\t public static void main (String[] args) { \n");
+                                                 System.out.print(e); :}
+            ;
+
+/* Expr consists of a term and a tail. Special care is taken for if statements because they can't have a tail (more on that later) and function calls behave a bit differently.   */
+expr      ::= term:t1 expr_tail:e2           {: RESULT = "\t \t System.out.println(" + t1 + e2 + "); \n" ; :}      
+              | if_term:if1                  {: RESULT = "\t \t System.out.println(" + if1 + "); \n" ;    :}
+              | func_call:f1 expr_tail:e2    {: RESULT = "\t \t System.out.println(" + f1 + e2 + "); \n" ; :}      
+             ;
+             
+/* A tail is either null (ε), or it may concatinate an other expression with the use of the '+' operator. */
+expr_tail  ::= PLUS plus_tail:p1   {:   RESULT = "+" + p1; :}
+              |                    {:   RESULT = ""; :}
+;
+
+/* Plus_tail has two cases because we can't concatinate an other expression after an if statement. Otherwise we proceed to the base tail.  */
+plus_tail ::= base_tail:b1           {:   RESULT = b1; :}
+        | if_term:if1                {:   RESULT = "("+ if1+ ")"; :}
+;
+
+/* Base_tail will have evaluate a term and after that we will go back to the expr_tail non terminal to see how we may proceed. (By either finishing off the expression or by another concatenation)  */
+base_tail ::= term2:t2 expr_tail:e3      {: RESULT = t2 + e3; :}        
+             ;
+
+/* The following expressions are part of an if statement. Lcond is used for the expression left of the prefix operator and likewise the rcond is used for the one on the right. */
+/* Also expr_yes is used for the expression if the condition is true, and expr_no if the condition is false. */
+
+expr_lcond  ::= term:t1 expr_tail:e2 PREFIX {: RESULT = t1 + e2; :}
+              | if_term:if1 PREFIX                {: RESULT = "(" + if1 + ")"; :}  
+              | func_call:f1  expr_tail:e2 PREFIX    {: RESULT = f1+ e2; :}  
+             ;
+
+expr_rcond  ::= term:t1 expr_tail:e2 RPAR {: RESULT = t1 + e2; :}
+                | if_term:if1 RPAR               {: RESULT = "(" + if1 + ")"; :}           
+                | func_call:f1 expr_tail:e2  RPAR   {: RESULT = f1 + e2; :}  
+             ;
+
+
+expr_yes  ::= term:t1 expr_tail:e2 ELSE {: RESULT = t1 + e2; :}
+           | if_term:if1 ELSE                 {: RESULT = "(" + if1 + ")"; :}  
+           | func_call:f1 expr_tail:e2 ELSE   {: RESULT = f1 + e2; :}  
+             ; 
+ 
+expr_no  ::= term:t1 expr_tail:e2  {: RESULT = t1 + e2; :}
+           | if_term:if1                   {: RESULT = "(" + if1 + ")"; :}  
+           | func_call:f1 expr_tail:e2   {: RESULT = f1 + e2; :}  
+
+; 
+
+/*Defining an if statement. It is evaluated to an expression that uses the ternary operator. */
+if_term ::= IF LPAR expr_lcond:l1 expr_rcond:r1 expr_yes:y1 expr_no:n1 {: RESULT = "(" + r1 + ")" + ".startsWith(" 
+                                                                        + "(" + l1 + ")" + ") ? " + y1 + " : " + n1 ; :} 
+;
+            
+/* Term is a "basic" term. Meaning either a string literal, or a reversed statement.  */
+term ::=  REVERSE term3:ts     {:   RESULT = "( new StringBuffer(" + ts + ".reverse() ).toString()" ;     :}   
+        | STRING_LITERAL:s      {:   RESULT = "\""+s+"\"" ;    :}
+;
+
+/* Term2 is used for expressions that are to the right of the "+" operator. */
+term2 ::= REVERSE term4:ts      {:   RESULT = "( new StringBuffer(" + ts + ".reverse() ).toString()" ;   :} 
+        | func_call:f1          {:   RESULT =  f1 ;     :}     
+        | STRING_LITERAL:s      {:   RESULT =  "\""+s+"\"" ;     :}
+;
+
+/* Term3 is used for expressions that are to the right of the reverse operator. */  
+term3 ::= REVERSE term3:t3       {:  RESULT = t3 + ".reverse()"; :} 
+        | STRING_LITERAL:s       {:  RESULT = "\""+s+"\"" + ")" ;  :}
+        | if_term:if1            {:   RESULT = "("+ if1+ "))"; :}
+        | func_call:f1           {:   RESULT =  f1 + ")"   ;     :}     
+;
+
+/* Term4 is used in cases where we have an expression that is to the right of both the + and reverse operators. */  
+term4 ::=  REVERSE term4:ts       {: RESULT =  ts + ".reverse()" ; :} 
+        | STRING_LITERAL:s        {:  RESULT = "\""+s+"\"" + ")" ; :}
+        | func_call:f1            {:  RESULT = f1 + ")" ; :}              
+        | if_term:if1             {:   RESULT = "("+ if1+ "))"; :}
+;
+
+/* Defining a function call. */
+func_call ::= ID:id1 LPAR func_tail:f2       {: RESULT = id1 + "(" + f2 ;   :}
+;
+
+/* A tail is either a list of arguments or it may be empty. */
+func_tail ::= func_expr_list:fl                {: RESULT = fl; :}  
+           | RPAR                              {:   RESULT = ")"; :}
+;
+
+/* Defining a list of arguments */
+func_expr_list ::= func_expr:e COMA func_expr_list:fl {: RESULT = e + "," + fl ;  :}
+            | func_expr:e RPAR                        {: RESULT = e + ")";        :}
+            ;
+
+/* Same expressions as we saw earlier in our program. */
+func_expr      ::= term:t1 expr_tail:e2       {: RESULT = t1 + e2; :}   
+              | if_term:if1                   {: RESULT = "("+ if1+ ")"; :}
+              | func_call:f1 expr_tail:e2     {: RESULT = f1 + e2; :}   
+;
